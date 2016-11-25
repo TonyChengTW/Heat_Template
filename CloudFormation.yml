@@ -1,0 +1,80 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Sample Heat template that spins up multiple instances and a private network (JSON)",
+  "Resources" : {
+    "cloud_network_01" : {
+      "Type" : "OS::Neutron::Net",
+      "Properties" : {
+        "name" : "cloud-network-01"
+      }
+    },
+ 
+    "cloud_subnet_01" : {
+      "Type" : "OS::Neutron::Subnet",
+      "Properties" : {
+        "name" : "cloud-subnet-01",
+        "cidr" : "30.0.0.0/24",
+        "dns_nameservers" : ["8.8.4.4", "8.8.8.8"],
+        "enable_dhcp" : "True",
+        "gateway_ip" : "30.0.0.254",
+        "network_id" : { "Ref" : "cloud_network_01" }
+      }
+    },
+ 
+    "cloud_router_01" : {
+      "Type" : "OS::Neutron::Router",
+      "Properties" : {
+        "admin_state_up" : "True",
+        "name" : "cloud-router-01"
+      }
+    },
+  
+    "cloud_router_int0" : {
+      "Type" : "OS::Neutron::RouterInterface",
+      "Properties" : {
+        "router_id" : { "Ref" : "cloud_router_01" },
+        "subnet_id" : { "Ref" : "cloud_subnet_01" }
+      }
+    },
+ 
+    "VM01_port0" : {
+      "Type" : "OS::Neutron::Port",
+      "Properties" : {
+        "admin_state_up" : "True",
+        "network_id" : { "Ref" : "cloud_network_01" },
+      }
+    },
+ 
+    "VM02_port0" : {
+      "Type" : "OS::Neutron::Port",
+      "Properties" : {
+        "admin_state_up" : "True",
+        "network_id" : { "Ref" : "cloud_network_01" },
+      }
+    },
+ 
+    "VM01" : {
+      "Type" : "OS::Nova::Server",
+      "Properties" : {
+        "name" : "cloud-VM01",
+        "image" : "b7dab5af-0cec-427f-a765-72108aac01ac",
+        "flavor": "m1.tiny",
+        "networks" : [{
+          "port" : { "Ref" : "VM01_port0" }
+        }]
+      }
+    },
+ 
+    "VM02" : {
+      "Type" : "OS::Nova::Server",
+      "Properties" : {
+        "name" : "cloud-VM02",
+        "image" : "b7dab5af-0cec-427f-a765-72108aac01ac",
+        "flavor": "m1.tiny",
+        "networks" : [{
+          "port" : { "Ref" : "VM02_port0" }
+        }]
+      }
+    }
+  }
+}

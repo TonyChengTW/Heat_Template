@@ -1,0 +1,84 @@
+description: CloudConfig in cloud-init
+heat_template_version: '2013-05-23'
+parameters:
+  pri_net:
+     type: string
+     description: Private Network ID for the server
+     default: 2e60d1a8-f9b1-46a4-a345-bdcd8f849d6d
+  pri_subnet:
+     type: string
+     description: Private Subnet ID for the server
+     default: cd56ba73-e665-4996-adcc-ac323d9b910d
+  pub_net:
+     type: string
+     description: Public Network ID for the server
+     default: 313abab3-2ed8-425a-855c-de9539e32da8
+  flavor:
+     description: flavor used by the web servers
+     type: string
+     default: m1.vivid
+  image: 
+     description: Image used for servers
+     type: string
+     default: Ubuntu-Vivid-Cloud
+  key_name: 
+     description: Key used for servers
+     type: string
+     default: os_key2
+ 
+resources:
+  LAMP_cfn_init_hook:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        users:
+          - name: root
+            ssh-authorized-keys:
+               - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDcV7ewWG2agiy3Cm0doVvtDrP4qbCbQ7XWbh1ZPykdN6HnQI/AkWSfCmiO4SxFn7wrqeEfDkRjZ+u9bI/65Mp6xMcDMbXg5oBSHhh+z2UaD2fM0DOGQU3kS96fnkAXCaeEPOYTzFBvilUDqnmeDaJ2XsIjVpAgZQJ1DAifl4niWioIWJi1xWyEI1vgQxBMjxMTAEvSgpM7qQP7AgNLjZINEiwGffrfulQfeYdSojK7nb6mxZEv+cH93lKPqdGqE58C7+/jB1+/m5yk7YBR0i9Eno9BwKOw7lovim/wcI+3JmyxtUWWzUwZy3A2ziS1WD0wvbOrvo20Wj22RWliuJMh
+        package_update: true
+        packages: 
+          - apache2
+          - php5
+          - mysql-server
+          - mysql-common
+
+        write_files:
+          - path: /var/www/html/index.php
+            encoding: b64
+            content: PD9waHANCiAgICBwaHBpbmZvKCk7DQo/Pg==
+            owner: root:root
+            permissions: '0644'
+
+  lamp:
+    type: OS::Nova::Server
+    properties:
+      name: LAMP Server
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      key_name: {get_param: key_name}
+      networks:
+      - port: {get_resource: lamp_port}
+      user_data_format: RAW
+      user_data: 
+        get_resource: LAMP_cfn_init_hook
+
+  lamp_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_param: pri_net }
+      fixed_ips:
+      - subnet_id: { get_param: pri_subnet}
+
+  lamp_floating_ip:
+     type: OS::Neutron::FloatingIP
+     properties:
+       floating_network_id: { get_param: pub_net }
+       port_id: { get_resource: lamp_port}
+
+outputs:
+  db_name:
+    description: Name of the DB
+    value: { get_attr: [lamp, name] }
+  db_ip:
+    description: IP address of the instance
+    value: { get_attr: [lamp, first_address] }
