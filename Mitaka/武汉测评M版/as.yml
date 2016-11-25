@@ -57,13 +57,10 @@ resources:
       metadata: { get_param: metadata }
       networks: [{network: {get_param: server_network} }]
       config_drive: True
+      user_data: |
+        #! /bin/sh -v
+        ip link set eth0 mtu 1400
       user_data_format: RAW
-      user_data:
-#        str_replace:
-          template: |
-            #! /bin/sh -v
-            ip link set eth0 mtu 1400
-
   cirros_floating_ip_association:
     type: OS::Nova::FloatingIPAssociation
     properties:
