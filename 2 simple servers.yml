@@ -1,0 +1,35 @@
+description: Two servers.
+heat_template_version: '2014-10-16'
+
+outputs:
+  private_ip:
+    description: IP address of the server in the private network
+    value:
+	  get_attr: [server, first_address]
+
+parameters:
+  ImageID1: {description: Image use to boot a server1, type: string}
+  NetID1: {description: Network ID for the server1, type: string}
+
+
+  ImageID2: {description: Image use to boot a server2, type: string}
+  NetID2: {description: Network ID for the server2, type: string}
+
+
+resources:
+  server1:
+    properties:
+      flavor: m1.tiny
+      image: {get_param: ImageID1}
+      networks:
+      - network: {get_param: NetID1}
+    type: OS::Nova::Server
+
+
+  server2:
+    properties:
+      flavor: m1.tiny
+      image: {get_param: ImageID2}
+      networks:
+      - network: {get_param: NetID2}
+    type: OS::Nova::Server

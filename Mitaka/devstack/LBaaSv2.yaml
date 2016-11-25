@@ -1,0 +1,203 @@
+heat_template_version: 2015-10-15
+description: AutoScaling in LBaaSv2
+parameters:
+  image:
+    type: string
+    description: Image used for Cirros AutoScaling servers
+    default: 62053649-4f89-4818-b21f-7cee92d50d07
+
+  key:
+     type: string
+     description: SSH key to connect to the servers
+     default: devstack-tw
+
+  flavor:
+    type: string
+    description: flavor used by the web servers
+    default: 84
+
+  sec_group:
+    type: string
+    description: security group
+    default: default
+
+  external_network:
+    type: string
+    description: UUID of a Neutron external network
+    default: ddeca0f3-a8d8-484a-96b8-f4f9cea8dfaa
+
+  listner_protocol:
+    type: string
+    description: Protocol on which to listen for the client traffic
+    constraints:
+      - allowed_values: [TCP, HTTP, HTTPS, TERMINATED_HTTPS]
+    default: HTTP
+
+  listner_protocol_port:
+    type: string
+    description: TCP or UDP port on which to listen for client traffic
+    default: 80
+
+  autoscaling_subnet_cidr:
+    type: string
+    description: autoscaling_net IP/CIDR
+    default: 10.10.10.0/24
+
+  checkservice:
+    type: string
+    constraints:
+      - allowed_values: [TCP, HTTP, HTTPS]
+    default: HTTP
+
+resources:
+  autoscaling_net:
+    type: 'OS::Neutron::Net'
+    properties:
+      name: "AutoScaling Net"
+
+  autoscaling_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: "AutoScaling Subnet"
+      cidr: {get_param: autoscaling_subnet_cidr}
+      dns_nameservers: [8.8.8.8, 8.8.4.4]
+      ip_version: 4
+      network_id: {get_resource: autoscaling_net}
+
+  as_router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: {network: {get_param: external_network}}
+      name: "AutoScaling Router"
+
+  bind_as_router_lbaas2:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: {get_resource: as_router}
+      subnet_id: {get_resource: autoscaling_subnet}
+
+  load_balancer:
+    type: OS::Neutron::LBaaS::LoadBalancer
+    properties:
+      name: "LB AutoScaling"
+      vip_subnet: {get_resource: autoscaling_subnet}
+
+  lb_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: {get_param: external_network}
+      port_id: {get_attr: [load_balancer, vip_port_id]}
+
+  listener:
+    type: OS::Neutron::LBaaS::Listener
+    properties:
+      name: "LB Listener AutoScaling"
+      loadbalancer: {get_resource: load_balancer}
+      protocol: {get_param: listner_protocol}
+      protocol_port: {get_param: listner_protocol_port}  
+
+  pool:
+    type: OS::Neutron::LBaaS::Pool
+    properties:
+      name: "AutoScaling Pool"
+      protocol: {get_param: checkservice}
+      lb_algorithm: ROUND_ROBIN
+      listener: {get_resource: listener}
+
+#  pool_member1:
+#   is defined in as_servers.yaml
+
+  monitor:
+    type: OS::Neutron::LBaaS::HealthMonitor
+    properties:
+      type: {get_param: checkservice}
+      delay: 5
+      max_retries: 5
+      timeout: 5
+      pool: {get_resource: pool}
+
+  as_group:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      desired_capacity: 1
+      max_size: 5
+      min_size: 1
+      resource:
+        type: http://192.168.121.36/mitaka_as.yaml
+        properties:
+          metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
+          pool_id: { get_resource: pool }
+          floating_ip_network: { get_param: external_network }
+          instance_flavor: { get_param: flavor }
+          server_network: { get_resource: autoscaling_net }
+          server_subnet: { get_resource: autoscaling_subnet }
+          server_image: { get_param: image }
+          server_secgroup: { get_param: sec_group }
+          server_port: { get_param: listner_protocol_port }
+          server_key: { get_param: key }
+
+  scaleup_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: as_group }
+      cooldown: 30
+      scaling_adjustment: 1
+
+  scaledown_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: as_group }
+      cooldown: 30
+      scaling_adjustment: -1
+
+  cpu_alarm_high:
+    type: OS::Ceilometer::GnocchiAggregationByResourcesAlarm
+    properties:
+      description: Scale-up if the last CPU > 30% for 1 minute
+      metric: cpu_util
+      aggregation_method: max
+      granularity: 60
+      evaluation_periods: 1
+      threshold: 30
+      comparison_operator: gt
+      alarm_actions:
+        - {get_attr: [scaleup_policy, alarm_url]}
+      resource_type: instance
+      query:
+        str_replace:
+          template: '{"=": {"server_group": "stack_id"}}'
+          params:
+            stack_id: {get_param: "OS::stack_id"}
+
+  cpu_alarm_low:
+    type: OS::Ceilometer::GnocchiAggregationByResourcesAlarm
+    properties:
+      description: Scale-down if the last CPU < 15% for 1 minutes
+      metric: cpu_util
+      aggregation_method: max
+      granularity: 60
+      evaluation_periods: 1
+      threshold: 15
+      comparison_operator: lt
+      alarm_actions:
+        - {get_attr: [scaledown_policy, alarm_url]}
+      resource_type: instance
+      query:
+        str_replace:
+          template: '{"=": {"server_group": "stack_id"}}'
+          params:
+            stack_id: {get_param: "OS::stack_id"}
+
+# And, our output:
+#
+outputs:
+  Scale-UP-URL:
+    value: {get_attr: [scaleup_policy, alarm_url]}
+  Scale-DOWN-URL:
+    value: {get_attr: [scaledown_policy, alarm_url]}
+  Scale-UP-SIGNAL-URL:
+    value: {get_attr: [scaleup_policy, signal_url]}
+  Scale-DOWN-SIGNAL-URL:
+    value: {get_attr: [scaledown_policy, signal_url]}

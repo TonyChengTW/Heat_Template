@@ -1,0 +1,42 @@
+heat_template_version: 2013-05-23
+description: A load-balancer server
+parameters:
+  image:
+    type: string
+    description: Image used for servers
+    default: b7dab5af-0cec-427f-a765-72108aac01ac  #Cirros
+    #default: 495c8028-31af-4247-adeb-4d88ed2b6283  #Vivid
+  key_name:
+    type: string
+    description: SSH key to connect to the servers
+    default: os_key2
+  flavor:
+    type: string
+    description: flavor used by the servers
+    default: m1.tiny
+  pool_id:
+    type: string
+    description: Pool to contact
+  metadata:
+    type: json
+  network:
+    type: string
+    description: Network used by the server
+    default: 2e60d1a8-f9b1-46a4-a345-bdcd8f849d6d
+
+resources:
+  server:
+    type: OS::Nova::Server
+    properties:
+      name: SSH-Server
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      key_name: {get_param: key_name}
+      metadata: {get_param: metadata}
+      networks: [{network: {get_param: network} }]
+  member:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: {get_param: pool_id}
+      address: {get_attr: [server, first_address]}
+      protocol_port: 22

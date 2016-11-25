@@ -1,0 +1,42 @@
+heat_template_version: 2013-05-23
+description: A load-balancer server
+parameters:
+  image:
+    type: string
+    description: Image used for servers
+    default: d9bfd6bc-5adb-4ff0-b033-5cdb1f7a7e1e
+  key_name:
+    type: string
+    description: SSH key to connect to the servers
+    default: lamp_key
+  flavor:
+    type: string
+    description: flavor used by the servers
+    default: m1.lamp
+  pool_id:
+    type: string
+    description: Pool to contact
+  metadata:
+    type: json
+  network:
+    type: string
+    description: Network used by the server
+    default: 7176897c-eea6-4f73-9eea-a2f0a02aa45d
+
+resources:
+  lamp:
+    type: OS::Nova::Server
+    properties:
+      name: LAMP Server
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      key_name: {get_param: key_name}
+      metadata: {get_param: metadata}
+      networks: [{network: {get_param: network} }]
+
+  member:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: {get_param: pool_id}
+      address: {get_attr: [lamp, first_address]}
+      protocol_port: 80

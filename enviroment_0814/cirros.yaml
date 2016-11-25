@@ -1,0 +1,19 @@
+heat_template_version: 2014-10-16  
+description: Auto Scaling with desired servers  - Tony Cheng 2015/8/14 v1
+resources:  
+  server:
+    type: OS::Nova::Server
+    properties:
+      block_device_mapping:
+        - device_name: vda
+          delete_on_termination: true
+          volume_id: { get_resource: volume } 
+      flavor: m1.tiny
+      networks:
+        - network: admin-net
+
+  volume:
+    type: OS::Cinder::Volume
+    properties:
+      image: 'Cirros_0.3.4'
+      size: 1

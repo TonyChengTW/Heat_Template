@@ -1,0 +1,21 @@
+description: A simple server.
+heat_template_version: '2014-10-16'
+outputs:
+  private_ip:
+    description: IP address of the server in the private network
+    value:
+      get_attr: [server, first_address]
+parameters:
+  ImageID: {description: Image use to boot a server, type: string}
+  NetID: {description: Network ID for the server, type: string}
+resources:
+  server:
+    properties:
+      flavor: m1.tiny
+      image: {get_param: ImageID}
+      networks:
+      - network: {get_param: NetID}
+    type: OS::Nova::Server
+  server-monitor:
+    properties: {delay: 5, max_retries: 5, timeout: 5, type: TCP}
+    type: OS::Neutron::HealthMonitor

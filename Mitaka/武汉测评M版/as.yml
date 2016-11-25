@@ -1,0 +1,79 @@
+heat_template_version: 2015-10-15
+description: Web server
+parameters:
+  server_image:
+    type: string
+    description: Image used for servers
+
+  instance_flavor:
+    type: string
+    description: flavor used by the servers
+
+#  pool_id:
+#    type: string
+#    description: Pool to contact
+
+  metadata:
+    type: json
+
+  server_network:
+    type: string
+    description: Network used by the server
+
+#  server_subnet:
+#    type: string
+#    description: Network used by pool member
+
+  floating_ip_network:
+    type: string
+    description: External Network
+
+  server_secgroup:
+    type: string
+    description: Instance Security Group
+
+  server_port:
+    type: string
+    description: Instance Application Group
+
+  server_key:
+    type: string
+    description: Instance SSH Access Key
+
+resources:
+  cirros_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: {get_param: floating_ip_network}
+
+  cirros_instance:
+    type: OS::Nova::Server
+    properties:
+      name: AutoScalingVM
+      flavor: { get_param: instance_flavor }
+      image: { get_param: server_image }
+      key_name: { get_param: server_key }
+      security_groups: [{get_param: server_secgroup}]
+      metadata: { get_param: metadata }
+      networks: [{network: {get_param: server_network} }]
+      config_drive: True
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #! /bin/sh -v
+            ip link set eth0 mtu 1400
+
+  cirros_floating_ip_association:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: cirros_floating_ip }
+      server_id: { get_resource: cirros_instance }
+
+#  pool_member1:
+#    type: OS::Neutron::LBaaS::PoolMember
+#    properties:
+#      pool: { get_param: pool_id }
+#      address: { get_attr: [ cirros_instance, first_address ]}
+#      protocol_port: { get_param: server_port }
+#      subnet: { get_param: server_subnet }
