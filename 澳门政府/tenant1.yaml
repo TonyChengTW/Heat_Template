@@ -1,0 +1,354 @@
+heat_template_version: 2015-04-30
+#heat_template_version: 2013-05-23
+description: AutoScaling in LoadBalancer
+parameters:
+  web_image:
+    type: string
+    description: Image used for servers
+    #default: d36f2c18-1fcd-4a65-a973-b465897e6b57 # lamp5
+    default: t1-web-v3
+    label: "Web Server Image"
+
+  db_image:
+    type: string
+    description: Image used for servers
+    #default: d36f2c18-1fcd-4a65-a973-b465897e6b57 # lamp5
+    default: t1-db-v2
+    label: "DB Server Image"
+
+  web_flavor:
+    type: string
+    description: flavor used by the web servers
+    default: 2u4r5g
+    label: "Web Server Flavor"
+
+  db_flavor:
+    type: string
+    description: flavor used by the DB servers
+    default: 2u2r5g
+    label: "DB Server Flavor"
+
+#  key:
+#    type: string
+#    description: SSH key to connect to the servers
+#    default: key1
+
+  internal_netA_subnet_cidr:
+    type: string
+    description: subnet IP/CIDR
+    default: 10.0.0.0/24
+
+  internal_netB_subnet_cidr:
+    type: string
+    description: subnet IP/CIDR
+    default: 20.0.0.0/24
+
+  web_ip:
+    label: "Web Server IP"
+    type: string
+    description: Web Server IP
+    default: 10.0.0.101
+
+  db_ip:
+    label: "DB Server IP"
+    type: string
+    description: DB Server IP
+    default: 20.0.0.101
+
+  external_network_id:
+    type: string
+    description: UUID of a Neutron external network
+    default: 73a32a5d-8a0b-4ffc-9c32-a288224917ac
+
+  checkservice:
+    type: string
+    constraints:
+      - allowed_values: [PING, TCP, HTTP, HTTPS]
+    default: HTTP
+
+  fw_source_cidrs:
+    label: Firewall Rule Source CIDR/IP
+    type: string
+    description: Firewall Rules Source CIDR/IP
+    default: 0.0.0.0/0
+ 
+  fw_dest_cidrs:
+    label: Firewall Rule Destination CIDR/IP
+    type: string
+    description: Firewall Rules Destination CIDR/IP
+    default: 0.0.0.0/0
+ 
+  fw_source_port:
+    label: Firewall Rule Source Port
+    type: string
+    description: Firewall Rules Source Port
+    default: 1:65535
+ 
+  fw_dest_port:
+    label: Firewall Rule Destination Port
+    type: string
+    description: Firewall Rules Destination Port
+    default: 1:65535
+
+resources:
+  internal_netA:
+    type: 'OS::Neutron::Net'
+    properties:
+      name: "netA"
+
+  internal_netA_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: "internal-netA-subnet"
+      cidr: {get_param: internal_netA_subnet_cidr}
+      dns_nameservers: [8.8.8.8, 8.8.4.4]
+      ip_version: 4
+      network_id: {get_resource: internal_netA}
+
+  internal_netA_port:
+    type: OS::Neutron::Port
+    properties:
+      name: "netA-fixed-port"
+      network_id: {get_resource: internal_netA}
+
+  internal_netB:
+    type: 'OS::Neutron::Net'
+    properties:
+      name: "netB"
+
+  internal_netB_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: "internal-netB-subnet"
+      cidr: {get_param: internal_netB_subnet_cidr}
+      dns_nameservers: [8.8.8.8, 8.8.4.4]
+      ip_version: 4
+      network_id: {get_resource: internal_netB}
+
+  internal_netB_port:
+    type: OS::Neutron::Port
+    properties:
+      name: "netB-fixed-port"
+      fixed_ips:
+      - ip_address: {get_param: db_ip}
+        subnet_id: {get_resource: internal_netB_subnet}
+      network_id: {get_resource: internal_netB}  
+
+  router1:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: {network: external-network}
+      name: "Router1"
+
+  bind_interface_NetA:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: {get_resource: router1}
+      subnet_id: {get_resource: internal_netA_subnet}
+
+  bind_interface_NetB:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: {get_resource: router1}
+      subnet_id: {get_resource: internal_netB_subnet}
+
+  db_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: {get_param: external_network_id}
+
+  db_server:
+    type: OS::Nova::Server
+    properties:
+      name: "t1-db"
+      image: {get_param: db_image}
+      flavor: {get_param: db_flavor}
+#      key_name: key1
+      networks:
+        [{"network": {get_resource: internal_netB},
+          "port": {get_resource: internal_netB_port}}]
+
+  db_association:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: db_floating_ip }
+      server_id: { get_resource: db_server }
+
+  fw_tcp_allowall:
+    type: OS::Neutron::FirewallRule
+    properties:
+      action: allow
+      source_ip_address: {get_param: fw_source_cidrs}
+      source_port: {get_param: fw_source_port}
+      destination_ip_address: {get_param: fw_dest_cidrs}
+      destination_port: {get_param: fw_dest_port}
+      enabled: True
+      name: "TCP Allow All"
+      protocol: tcp
+ 
+  fw_udp_allowall:
+    type: OS::Neutron::FirewallRule
+    properties:
+      action: allow
+      source_ip_address: {get_param: fw_source_cidrs}
+      source_port: {get_param: fw_source_port}
+      destination_ip_address: {get_param: fw_dest_cidrs}
+      destination_port: {get_param: fw_dest_port}
+      enabled: True
+      name: "UDP Allow All"
+      protocol: udp
+ 
+  fw_icmp_allow:
+    type: OS::Neutron::FirewallRule
+    properties:
+      action: allow
+      source_ip_address: {get_param: fw_source_cidrs}
+      destination_ip_address: {get_param: fw_dest_cidrs}
+      enabled: True
+      name: "ICMP Allow"
+      protocol: icmp
+ 
+  asg:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 1
+      max_size: 3
+      desired_capacity: 1
+      resource:
+        type: "http://192.168.121.102/as_server54.yaml"
+        properties:
+          flavor: {get_param: web_flavor}
+          image: {get_param: web_image}
+ #         key_name: {get_param: key}
+          network: {get_resource: internal_netA}
+          pool_id: {get_resource: pool}
+          metadata: {"metering.stack": {get_param: "OS::stack_id"}}
+          user_data:
+            str_replace:
+              template: |
+                #!/bin/bash
+                echo -e "$db_ip\t\tt1-db" >> /etc/hosts
+              params:
+                $db_ip: {get_param: db_ip}
+
+  web_server_scaleup_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: asg}
+      cooldown: 70
+      scaling_adjustment: 1
+
+  web_server_scaledown_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: asg}
+      cooldown: 30
+      scaling_adjustment: -1
+
+  cpu_alarm_high:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-up if the average CPU > 50% for 30 second
+      meter_name: cpu_util
+      statistic: avg
+      period: 120
+      evaluation_periods: 1
+      threshold: 50
+      alarm_actions:
+        - {get_attr: [web_server_scaleup_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: gt
+
+  cpu_alarm_low:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-down if the average CPU < 15% for 30 second
+      meter_name: cpu_util
+      statistic: avg
+      period: 120
+      evaluation_periods: 1
+      threshold: 15
+      alarm_actions:
+        - {get_attr: [web_server_scaledown_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: lt
+
+  monitor:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      type: {get_param: checkservice}
+      delay: 3
+      max_retries: 3
+      timeout: 3
+      url_path: /login/?next=/
+
+  pool:
+    type: OS::Neutron::Pool
+    properties:
+      name: AutoScaling_Pool
+      protocol: {get_param: checkservice}
+      monitors: [{get_resource: monitor}]
+      subnet_id: {get_resource: internal_netA_subnet}
+      lb_method: ROUND_ROBIN
+      vip:
+        protocol_port: 80
+  lb:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      protocol_port: 80
+      pool_id: {get_resource: pool}
+
+  lb_floating:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: {get_param: external_network_id}
+      port_id: {get_attr: [pool, vip, port_id]}
+
+outputs:
+  scale_up_url:
+    description: >
+      This URL is the webhook to scale up the autoscaling group.  You
+      can invoke the scale-up operation by doing an HTTP POST to this
+      URL; no body nor extra headers are needed.
+    value: {get_attr: [web_server_scaleup_policy, alarm_url]}
+  scale_dn_url:
+    description: >
+      This URL is the webhook to scale down the autoscaling group.
+      You can invoke the scale-down operation by doing an HTTP POST to
+      this URL; no body nor extra headers are needed.
+    value: {get_attr: [web_server_scaledown_policy, alarm_url]}
+  pool_ip_address:
+    value: {get_attr: [pool, vip, address]}
+    description: The IP address of the load balancing pool
+  #website_url:
+    #value:
+    #    str_replace:
+    #    template: http://host/wordpress/
+    #    params:
+    #      #host: { get_attr: [lb_floating, floating_ip_address] }
+    #description: >
+    #  This URL is the "external" URL that can be used to access the
+    #  Wordpress site.
+  ceilometer_query:
+    value:
+      str_replace:
+        template: >
+          ceilometer statistics -m cpu_util
+          -q metadata.user_metadata.stack=stackval -p 60 -a avg
+        params:
+          stackval: { get_param: "OS::stack_id" }
+    description: >
+      This is a Ceilometer query for statistics on the cpu_util meter
+      Samples about OS::Nova::Server instances in this stack.  The -q
+      parameter selects Samples according to the subject's metadata.
+      When a VM's metadata includes an item of the form metering.X=Y,
+      the corresponding Ceilometer resource has a metadata item of the
+      form user_metadata.X=Y and samples about resources so tagged can
+      be queried with a Ceilometer query term of the form
+      metadata.user_metadata.X=Y.  In this case the nested stacks give
+      their VMs metadata that is passed as a nested stack parameter,
+      and this stack passes a metadata of the form metering.stack=Y,
+      where Y is this stack's ID.
+ 
