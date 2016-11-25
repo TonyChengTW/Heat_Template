@@ -32,9 +32,9 @@ parameters:
     type: string
     description: Instance Security Group
 
-  server_port:
-    type: string
-    description: Instance Application Group
+#  server_port:
+#    type: string
+#    description: Instance Application Group
 
   server_key:
     type: string

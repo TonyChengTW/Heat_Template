@@ -33,10 +33,10 @@ parameters:
 #      - allowed_values: [TCP, HTTP, HTTPS, TERMINATED_HTTPS]
 #    default: HTTP
 
-  listner_protocol_port:
-    type: string
-    description: TCP or UDP port on which to listen for client traffic
-    default: 80
+#  listner_protocol_port:
+#    type: string
+#    description: TCP or UDP port on which to listen for client traffic
+#    default: 80
 
   autoscaling_net:
     type: string
@@ -139,7 +139,7 @@ resources:
 #          server_subnet: { get_resource: autoscaling_subnet }
           server_image: { get_param: image }
           server_secgroup: { get_param: sec_group }
-          server_port: { get_param: listner_protocol_port }
+#          server_port: { get_param: listner_protocol_port }
           server_key: { get_param: key }
 
   scaleup_policy:
