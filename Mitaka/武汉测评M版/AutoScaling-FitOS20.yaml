@@ -4,7 +4,7 @@ parameters:
   image:
     type: string
     description: Image used for ASVM AutoScaling servers
-    default: 0e7f5137-0348-4f95-a090-e3d245583a00
+    default: 4036505c-24ea-46cf-bc58-b5037db82803
 
   key:
      type: string
@@ -14,7 +14,7 @@ parameters:
   flavor:
     type: string
     description: flavor used by the web servers
-    default: 451
+    default: b9ec00f0-0993-4ef2-88b0-e4fb85addad2
 
   sec_group:
     type: string
@@ -24,7 +24,7 @@ parameters:
   external_network:
     type: string
     description: UUID of a Neutron external network
-    default: 201ae4d7-aa11-4208-b375-2cbc820ef22b
+    default: de26e094-0817-428b-8054-b4262746d11b
 
 #  listner_protocol:
 #    type: string
@@ -41,7 +41,7 @@ parameters:
   autoscaling_net:
     type: string
     description: autoscaling_net UUID
-    default: 527eb5b6-f98d-41ed-bf52-3b29e15db99d
+    default: f6cbb013-3a12-4a96-ab8c-00e354e51e69
 
 #  autoscaling_subnet_cidr:
 #    type: string
@@ -128,7 +128,7 @@ resources:
       max_size: 4
       min_size: 1
       resource:
-        type: http://192.168.230.210:8080/as.yaml
+        type: http://192.168.1.250:8888/as.yaml
         properties:
           metadata: {"metering.stack": {get_param: "OS::stack_id"}}
 #          metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
