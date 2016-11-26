@@ -4,7 +4,7 @@ parameters:
   image:
     type: string
     description: Image used for ASVM AutoScaling servers
-    default: 4036505c-24ea-46cf-bc58-b5037db82803
+    default: 6f720659-31a5-4cc3-8972-f72fa1f2008c
 
   key:
      type: string
@@ -163,7 +163,7 @@ resources:
     properties:
       description: Scale-up if the average CPU > 50% for 30 second
       meter_name: cpu_util
-      statistic: avg
+      statistic: max
       period: 30
       evaluation_periods: 1
       threshold: 50
@@ -177,7 +177,7 @@ resources:
     properties:
       description: Scale-down if the average CPU < 15% for 30 second
       meter_name: cpu_util
-      statistic: avg
+      statistic: min
       period: 30
       evaluation_periods: 1
       threshold: 15
