@@ -14,7 +14,7 @@ parameters:
   flavor:
     type: string
     description: flavor used by the web servers
-    default: b9ec00f0-0993-4ef2-88b0-e4fb85addad2
+    default: 175b578b-da7a-442d-bd21-65a332c9b8a3
 
   sec_group:
     type: string
@@ -24,7 +24,7 @@ parameters:
   external_network:
     type: string
     description: UUID of a Neutron external network
-    default: de26e094-0817-428b-8054-b4262746d11b
+    default: 1c6f4e70-40ee-47ac-8af6-dba9f10ba172
 
 #  listner_protocol:
 #    type: string
@@ -41,7 +41,7 @@ parameters:
   autoscaling_net:
     type: string
     description: autoscaling_net UUID
-    default: f6cbb013-3a12-4a96-ab8c-00e354e51e69
+    default: 606709a4-0015-4472-820d-a8eceabac6c3
 
 #  autoscaling_subnet_cidr:
 #    type: string
@@ -163,8 +163,8 @@ resources:
     properties:
       description: Scale-up if the average CPU > 50% for 30 second
       meter_name: cpu_util
-      statistic: max
-      period: 30
+      statistic: avg
+      period: 60
       evaluation_periods: 1
       threshold: 50
       alarm_actions:
@@ -177,10 +177,10 @@ resources:
     properties:
       description: Scale-down if the average CPU < 15% for 30 second
       meter_name: cpu_util
-      statistic: min
-      period: 30
+      statistic: avg
+      period: 60
       evaluation_periods: 1
-      threshold: 15
+      threshold: 20
       alarm_actions:
         - {get_attr: [scaledown_policy, alarm_url]}
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
@@ -189,11 +189,11 @@ resources:
 # And, our output:
 #
 outputs:
-  Scale-UP-Alarm-URL:
+  Scale-UP-Alarm-URL(CFN):
     value: {get_attr: [scaleup_policy, alarm_url]}
-  Scale-DOWN-Alarm-URL:
+  Scale-DOWN-Alarm-URL(CFN):
     value: {get_attr: [scaledown_policy, alarm_url]}
-  Scale-UP-SIGNAL-URL:
+  Scale-UP-SIGNAL-URL(heat-api):
     value: {get_attr: [scaleup_policy, signal_url]}
-  Scale-DOWN-SIGNAL-URL:
+  Scale-DOWN-SIGNAL-URL(heat-api):
     value: {get_attr: [scaledown_policy, signal_url]}

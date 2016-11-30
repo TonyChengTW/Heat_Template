@@ -41,10 +41,10 @@ parameters:
     description: Instance SSH Access Key
 
 resources:
-  cirros_floating_ip:
-    type: OS::Neutron::FloatingIP
-    properties:
-      floating_network_id: {get_param: floating_ip_network}
+#  cirros_floating_ip:
+#    type: OS::Neutron::FloatingIP
+#    properties:
+#      floating_network_id: {get_param: floating_ip_network}
 
   cirros_instance:
     type: OS::Nova::Server
@@ -61,11 +61,11 @@ resources:
         #! /bin/sh -v
         ip link set eth0 mtu 1400
       user_data_format: RAW
-  cirros_floating_ip_association:
-    type: OS::Nova::FloatingIPAssociation
-    properties:
-      floating_ip: { get_resource: cirros_floating_ip }
-      server_id: { get_resource: cirros_instance }
+#  cirros_floating_ip_association:
+#    type: OS::Nova::FloatingIPAssociation
+#    properties:
+#      floating_ip: { get_resource: cirros_floating_ip }
+#      server_id: { get_resource: cirros_instance }
 #  pool_member1:
 #    type: OS::Neutron::LBaaS::PoolMember
 #    properties:
