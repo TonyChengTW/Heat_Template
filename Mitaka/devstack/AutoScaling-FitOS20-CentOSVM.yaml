@@ -3,18 +3,18 @@ description: AutoScaling in FitOS 2.0
 parameters:
   image:
     type: string
-    description: Image used for Cirros AutoScaling servers
-    default: 62053649-4f89-4818-b21f-7cee92d50d07
+    description: Image used for ASVM AutoScaling servers
+    default: 60fa0615-0f08-401a-a2d7-5179ad3326d1
 
   key:
      type: string
      description: SSH key to connect to the servers
-     default: devstack-tw
+     default: 1
 
   flavor:
     type: string
     description: flavor used by the web servers
-    default: 84
+    default: 451
 
   sec_group:
     type: string
@@ -24,7 +24,7 @@ parameters:
   external_network:
     type: string
     description: UUID of a Neutron external network
-    default: ddeca0f3-a8d8-484a-96b8-f4f9cea8dfaa
+    default: 201ae4d7-aa11-4208-b375-2cbc820ef22b
 
 #  listner_protocol:
 #    type: string
@@ -32,16 +32,21 @@ parameters:
 #    constraints:
 #      - allowed_values: [TCP, HTTP, HTTPS, TERMINATED_HTTPS]
 #    default: HTTP
-#
+
 #  listner_protocol_port:
 #    type: string
 #    description: TCP or UDP port on which to listen for client traffic
 #    default: 80
 
-  autoscaling_subnet_cidr:
+  autoscaling_net:
     type: string
-    description: autoscaling_net IP/CIDR
-    default: 10.10.10.0/24
+    description: autoscaling_net UUID
+    default: 527eb5b6-f98d-41ed-bf52-3b29e15db99d
+
+#  autoscaling_subnet_cidr:
+#    type: string
+#    description: autoscaling_net IP/CIDR
+#    default: 10.10.10.0/24
 
 #  checkservice:
 #    type: string
@@ -50,32 +55,32 @@ parameters:
 #    default: HTTP
 
 resources:
-  autoscaling_net:
-    type: 'OS::Neutron::Net'
-    properties:
-      name: "AutoScaling Net"
-
-  autoscaling_subnet:
-    type: OS::Neutron::Subnet
-    properties:
-      name: "AutoScaling Subnet"
-      cidr: {get_param: autoscaling_subnet_cidr}
-      dns_nameservers: [8.8.8.8, 8.8.4.4]
-      ip_version: 4
-      network_id: {get_resource: autoscaling_net}
-
-  as_router:
-    type: OS::Neutron::Router
-    properties:
-      external_gateway_info: {network: {get_param: external_network}}
-      name: "AutoScaling Router"
-
-  bind_as_router_lbaas2:
-    type: OS::Neutron::RouterInterface
-    properties:
-      router_id: {get_resource: as_router}
-      subnet_id: {get_resource: autoscaling_subnet}
-
+#  autoscaling_net:
+#    type: 'OS::Neutron::Net'
+#    properties:
+#      name: "AutoScaling Net"
+#
+#  autoscaling_subnet:
+#    type: OS::Neutron::Subnet
+#    properties:
+#      name: "AutoScaling Subnet"
+#      cidr: {get_param: autoscaling_subnet_cidr}
+#      dns_nameservers: [8.8.8.8, 10.19.8.15]
+#      ip_version: 4
+#      network_id: {get_resource: autoscaling_net}
+#
+#  as_router:
+#    type: OS::Neutron::Router
+#    properties:
+#      external_gateway_info: {network: {get_param: external_network}}
+#      name: "AutoScaling Router"
+#
+#  bind_as_router_lbaas2:
+#    type: OS::Neutron::RouterInterface
+#    properties:
+#      router_id: {get_resource: as_router}
+#      subnet_id: {get_resource: autoscaling_subnet}
+#
 #  load_balancer:
 #    type: OS::Neutron::LBaaS::LoadBalancer
 #    properties:
@@ -95,7 +100,7 @@ resources:
 #      loadbalancer: {get_resource: load_balancer}
 #      protocol: {get_param: listner_protocol}
 #      protocol_port: {get_param: listner_protocol_port}  
-#
+#  
 #  pool:
 #    type: OS::Neutron::LBaaS::Pool
 #    properties:
@@ -103,10 +108,10 @@ resources:
 #      protocol: {get_param: checkservice}
 #      lb_algorithm: ROUND_ROBIN
 #      listener: {get_resource: listener}
-#
-##  pool_member1:
-##   is defined in as_servers.yaml
-#
+#  
+#  #  pool_member1:
+#  #   is defined in as_servers.yaml
+#  
 #  monitor:
 #    type: OS::Neutron::LBaaS::HealthMonitor
 #    properties:
@@ -115,26 +120,26 @@ resources:
 #      max_retries: 5
 #      timeout: 5
 #      pool: {get_resource: pool}
-#
+
   as_group:
     type: OS::Heat::AutoScalingGroup
     properties:
       desired_capacity: 1
-      max_size: 5
+      max_size: 4
       min_size: 1
       resource:
-        type: http://192.168.121.36/mitaka_as.yaml
+        type: http://192.168.230.210:8080/as.yaml
         properties:
           metadata: {"metering.stack": {get_param: "OS::stack_id"}}
 #          metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
-          pool_id: { get_resource: pool }
+#          pool_id: { get_resource: pool }
           floating_ip_network: { get_param: external_network }
           instance_flavor: { get_param: flavor }
-          server_network: { get_resource: autoscaling_net }
-          server_subnet: { get_resource: autoscaling_subnet }
+          server_network: { get_param: autoscaling_net }
+#          server_subnet: { get_resource: autoscaling_subnet }
           server_image: { get_param: image }
           server_secgroup: { get_param: sec_group }
-          server_port: { get_param: listner_protocol_port }
+#          server_port: { get_param: listner_protocol_port }
           server_key: { get_param: key }
 
   scaleup_policy:
@@ -142,7 +147,7 @@ resources:
     properties:
       adjustment_type: change_in_capacity
       auto_scaling_group_id: { get_resource: as_group }
-      cooldown: 30
+      cooldown: 60
       scaling_adjustment: 1
 
   scaledown_policy:
@@ -150,20 +155,20 @@ resources:
     properties:
       adjustment_type: change_in_capacity
       auto_scaling_group_id: { get_resource: as_group }
-      cooldown: 30
+      cooldown: 60
       scaling_adjustment: -1
 
   cpu_alarm_high:
     type: OS::Ceilometer::Alarm
     properties:
-      description: Scale-up if the average CPU > 80% for 30 second
+      description: Scale-up if the average CPU > 50% for 30 second
       meter_name: cpu_util
       statistic: avg
-      period: 30
+      period: 60
       evaluation_periods: 1
       threshold: 50
       alarm_actions:
-        - {get_attr: [web_server_scaleup_policy, alarm_url]}
+        - {get_attr: [scaleup_policy, alarm_url]}
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
       comparison_operator: gt
 
@@ -173,22 +178,22 @@ resources:
       description: Scale-down if the average CPU < 15% for 30 second
       meter_name: cpu_util
       statistic: avg
-      period: 30
+      period: 60
       evaluation_periods: 1
-      threshold: 15
+      threshold: 20
       alarm_actions:
-        - {get_attr: [web_server_scaledown_policy, alarm_url]}
+        - {get_attr: [scaledown_policy, alarm_url]}
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
       comparison_operator: lt
 
 # And, our output:
 #
 outputs:
-  Scale-UP-URL:
+  Scale-UP-Alarm-URL(CFN):
     value: {get_attr: [scaleup_policy, alarm_url]}
-  Scale-DOWN-URL:
+  Scale-DOWN-Alarm-URL(CFN):
     value: {get_attr: [scaledown_policy, alarm_url]}
-  Scale-UP-SIGNAL-URL:
+  Scale-UP-SIGNAL-URL(heat-api):
     value: {get_attr: [scaleup_policy, signal_url]}
-  Scale-DOWN-SIGNAL-URL:
+  Scale-DOWN-SIGNAL-URL(heat-api):
     value: {get_attr: [scaledown_policy, signal_url]}
